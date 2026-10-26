@@ -1,0 +1,17 @@
+{
+  "_id": 1,
+  "source_row": 1,
+  "date_time": {
+    "$date": "2012-10-02T09:00:00Z"
+  },
+  "traffic_volume": 5545,
+  "holiday": null,
+  "weather": {
+    "temp": 288.28,
+    "rain_1h": 0.0,
+    "snow_1h": 0.0,
+    "clouds_all": 40,
+    "weather_main": "Clouds",
+    "weather_description": "scattered clouds"
+  }
+}
