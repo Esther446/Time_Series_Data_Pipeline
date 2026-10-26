@@ -156,47 +156,80 @@ Apply the same cleaning steps used in Part 1 to create the CSV consumed by both 
 python scripts/prepare_data.py
 ```
 
-Create the MySQL schema using a MySQL account with database/table creation privileges:
+### Start local MySQL and MongoDB with Docker Compose
+
+Install and start Docker Desktop, then open a new PowerShell terminal in the repository root. Copy the example environment file and replace both placeholder passwords with unique local passwords. Do not commit `.env`.
 
 ```powershell
-Get-Content -Raw .\sql\schema.sql | mysql -u YOUR_MYSQL_USER -p
+Copy-Item .env.example .env
+notepad .env
+docker compose up -d
+docker compose ps
 ```
 
-Set the connection environment variables in PowerShell (replace the example values; do not commit real credentials):
+Wait until both services report `healthy`. The databases then listen on `127.0.0.1:3306` (MySQL) and `127.0.0.1:27017` (MongoDB). If either port is already in use, change its `*_PORT_HOST` value in `.env` and recreate the containers with `docker compose up -d`.
+
+The Compose setup keeps database files in named Docker volumes. Stopping the containers does not delete the data:
 
 ```powershell
+docker compose stop
+docker compose start
+```
+
+The examples below read `.env` into the current PowerShell process so the Python loaders can connect without putting passwords in source code. Run these assignments once per terminal session:
+
+```powershell
+$settings = @{}
+Get-Content .env | ForEach-Object {
+    if ($_ -match '^\s*([^#=]+)=(.*)$') {
+        $settings[$matches[1]] = $matches[2]
+    }
+}
 $env:MYSQL_HOST = "127.0.0.1"
-$env:MYSQL_PORT = "3306"
-$env:MYSQL_USER = "YOUR_MYSQL_USER"
-$env:MYSQL_PASSWORD = "YOUR_MYSQL_PASSWORD"
+$env:MYSQL_PORT = $settings["MYSQL_PORT_HOST"]
+$env:MYSQL_USER = "root"
+$env:MYSQL_PASSWORD = $settings["MYSQL_ROOT_PASSWORD"]
 $env:MYSQL_DATABASE = "time_series_traffic"
+$env:MONGODB_URI = "mongodb://$($settings['MONGODB_ROOT_USERNAME']):$($settings['MONGODB_ROOT_PASSWORD'])@127.0.0.1:$($settings['MONGODB_PORT_HOST'])/?authSource=admin"
+$env:MONGODB_DATABASE = "time_series_traffic"
+```
+
+Create the MySQL tables by piping the schema into the running MySQL container:
+
+```powershell
+Get-Content -Raw .\sql\schema.sql | docker compose exec -T mysql sh -c 'mysql -u root -p"$MYSQL_ROOT_PASSWORD"'
+```
+
+Load the prepared CSV into MySQL and MongoDB:
+
+```powershell
 python scripts/load_sql.py "data\cleaned_traffic.csv"
+python scripts/load_mongodb.py "data\cleaned_traffic.csv"
 ```
 
 The SQL loader expects an empty `traffic_observations` table to prevent duplicate imports. For a repeatable fresh import, create a fresh database/schema before running it again rather than deleting data implicitly in the loader.
 
-For MongoDB, set a URI and load the same CSV:
+Execute the SQL queries on the running MySQL server:
 
 ```powershell
-$env:MONGODB_URI = "mongodb://localhost:27017"
-$env:MONGODB_DATABASE = "time_series_traffic"
-python scripts/load_mongodb.py "data\cleaned_traffic.csv"
+Get-Content -Raw .\sql\queries.sql | docker compose exec -T mysql sh -c 'mysql -u root -p"$MYSQL_ROOT_PASSWORD"'
 ```
 
-The MongoDB loader uses the source row number as `_id`, so importing the same CSV again updates matching documents instead of duplicating them. If a later CSV contains fewer rows, remove any stale trailing documents deliberately before treating it as a complete replacement.
+The MongoDB loader uses the source row number as `_id`, so importing the same CSV again updates matching documents instead of duplicating them. If a later CSV contains fewer rows, remove any stale trailing documents deliberately before treating it as a complete replacement. Execute the MongoDB queries on the running server:
+
+```powershell
+docker compose cp .\mongodb\queries.js mongodb:/tmp/queries.js
+docker compose exec mongodb mongosh `
+  --username $settings["MONGODB_ROOT_USERNAME"] `
+  --password $settings["MONGODB_ROOT_PASSWORD"] `
+  --authenticationDatabase admin `
+  --file /tmp/queries.js
+```
+
+To stop the database services while preserving their data, run `docker compose stop`. To also remove the database volumes and permanently delete the imported database contents, run `docker compose down -v` only when you intentionally want a complete reset.
 
 ## 4. Run the queries and record results
 
-Run the SQL examples after loading:
-
-```powershell
-Get-Content -Raw .\sql\queries.sql | mysql -u YOUR_MYSQL_USER -p
-```
-
-Run the MongoDB examples with `mongosh`:
-
-```powershell
-mongosh "$env:MONGODB_URI" mongodb/queries.js
-```
+Use the Docker Compose commands in the preceding section to execute `sql/queries.sql` and `mongodb/queries.js` against the live local database services.
 
 The scripts include four queries per database. Their date-range examples use a half-open interval from 1 January 2016 inclusive to 1 February 2016 exclusive. The actual cleaned dataset's query results are recorded in `outputs/task2_query_results.md`; these were calculated against a local SQLite copy and matching MongoDB-style aggregations because MySQL and MongoDB servers were not available in the development environment. Run the database query scripts against your live MySQL and MongoDB instances and include their output or screenshots as final evidence that the queries execute in those systems.
