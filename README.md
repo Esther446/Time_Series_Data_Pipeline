@@ -1,102 +1,67 @@
-# Time Series Analysis and Forecasting
+# Time Series Data Pipeline
 
-## Project Overview
+## Project overview
 
-This project explores time-series data analysis and forecasting through multiple tasks. It aims to identify patterns and trends in historical data, apply appropriate analytical and forecasting techniques, and evaluate model performance using relevant metrics.
+This project uses the Metro Interstate Traffic Volume dataset to study traffic patterns, evaluate forecasting models, and implement SQL and MongoDB databases. This README documents the completed work for **Part 1: Time-Series Analysis and Forecasting** and **Part 2: SQL and MongoDB Database Design**.
 
-Each part of the project focuses on its assigned analysis and methodology. The sections below document the datasets, approaches, findings, and results for each task.
+## Dataset
 
----
+- **Dataset:** [Metro Interstate Traffic Volume — Kaggle](https://www.kaggle.com/datasets/uciml/metro-interstate-traffic-volume)
+- **Alternative public source:** [Metro Interstate Traffic Volume — UCI](https://archive.ics.uci.edu/dataset/492/metro+interstate+traffic+volume)
+- **Target:** `traffic_volume`
+- **Timestamp:** `date_time`
+- **Source data:** 48,204 rows and nine columns: holiday, weather measurements and descriptions, timestamp, and traffic volume.
 
-# Part 1: Metro Interstate Traffic Volume Analysis and Forecasting
+The observations are hourly-oriented but the series is not a complete regular hourly grid; the source has gaps as well as repeated timestamps. Part 1 consolidates duplicate timestamps, and lag features should therefore be described as previous-observation lags unless a fixed interval is explicitly verified.
 
-## 1. Objective
+The source and prepared CSV files are kept under the locally ignored `data/` directory; they are not included in Git. Download the source CSV and place it at:
 
-The objective of Part 1 is to analyze historical traffic volume data, identify temporal patterns and trends, and develop forecasting models using historical traffic observations.
+```text
+data/Metro_Interstate_Traffic_Volume.csv
+```
 
-## 2. Dataset
+## Part 1: Time-series analysis and forecasting
 
-**Dataset:** Metro Interstate Traffic Volume
+The Part 1 analysis documented for this project covers traffic by hour, weekday versus weekend, day of week, month, 24-observation moving average, and lag-1 relationship. Its data-preparation notes describe chronological sorting, duplicate-timestamp investigation, cleaning the anomalous rainfall value, and aggregating repeated timestamps.
 
-**Source:** [Metro Interstate Traffic Volume — Kaggle](https://www.kaggle.com/datasets/uciml/metro-interstate-traffic-volume)
-
-The dataset contains 48,204 records and nine columns, including timestamps, traffic volume, weather conditions, and holiday information.
-
-- **Target variable:** `traffic_volume`
-- **Time column:** `date_time`
-
-## 3. Data Preparation
-
-The data preparation process included:
-
-- Inspecting data types, missing values, and duplicate records.
-- Investigating repeated timestamps and anomalous rainfall values.
-- Handling missing values and consolidating repeated timestamps.
-- Sorting observations chronologically.
-- Preparing time-based and lag features for forecasting.
-
-## 4. Exploratory Data Analysis
-
-Six questions guided the exploratory analysis:
-
-1. How does traffic volume vary by hour of the day?
-2. How does average traffic differ between weekdays and weekends?
-3. Which days of the week experience the highest and lowest traffic?
-4. How does traffic volume vary by month?
-5. What trends are visible through a moving average?
-6. How strongly is traffic volume related to the previous available observation?
-
-Visualizations were used to examine traffic patterns and communicate the findings.
-
-## 5. Forecasting Methodology
-
-Two regression models were developed and evaluated:
-
-- **Linear Regression:** Baseline model.
-- **Random Forest Regressor:** Model tuned using validation data.
-
-The dataset was split chronologically into training (70%), validation (15%), and test (15%) sets to preserve temporal order. Model performance was assessed using Mean Absolute Error (MAE), Root Mean Squared Error (RMSE), and the coefficient of determination (R²).
-
-## 6. Results
+The existing analysis summary reports Linear Regression and tuned Random Forest experiments using a chronological 70%/15%/15% train/validation/test split:
 
 | Model | MAE | RMSE | R² |
 |---|---:|---:|---:|
 | Linear Regression | 487.17 | 676.41 | 0.8832 |
 | Random Forest | 149.60 | 236.63 | 0.9857 |
 
-The Random Forest model outperformed Linear Regression across all three test metrics, achieving lower prediction errors and a higher R² score.
+The analysis uses six questions covering hourly, weekday/weekend, day-of-week, monthly, moving-average, and lag-1 patterns. The notebook results report visualizations and interpretations for these questions, including the required moving-average and lagged-feature analyses.
 
-## 7. Key Findings
+## Part 2: Database design and implementation
 
-- Average traffic volume was highest around 16:00 and lowest around 03:00.
-- Weekday traffic was higher on average than weekend traffic.
-- Friday had the highest average traffic by day of the week, while Sunday had the lowest.
-- August had the highest average traffic by month, while December had the lowest.
-- The Random Forest model captured traffic patterns effectively and achieved strong test performance.
+### Cleaning and reproducible row counts
 
-## 8. Limitations
+Run [prepare_data.py](scripts/prepare_data.py) to apply the Part 1 cleaning rules to the original CSV:
 
-The dataset contains gaps and repeated timestamps. Consequently, lag features refer to previous available observations, which are not always exactly one hour apart. This limitation should be considered when interpreting the forecasting results.
+- Fill missing holiday labels with `"None"`.
+- Treat rainfall `9831.3` as invalid.
+- Group repeated timestamps, averaging numeric columns and keeping the first holiday/weather labels.
+- Sort the results chronologically.
+- Fill missing rainfall with the median rainfall.
 
----
+For the supplied Metro Interstate dataset, this produces **40,575 observations** from 48,204 source rows, consolidating 7,629 repeated-timestamp rows. The resulting range is **2012-10-02 09:00:00 through 2018-09-30 23:00:00**. `prepare_data.py` writes `data/cleaned_traffic.csv`, which is the common input to both database loaders.
 
-# Part 2: SQL and MongoDB Database Design
+### MySQL relational design
 
-## 1. Design choices
+[schema.sql](sql/schema.sql) creates the `time_series_traffic` database and three InnoDB tables:
 
-Part 2 uses the same Metro Interstate Traffic Volume dataset as Part 1. The source CSV linked above is also available from the [UCI repository](https://archive.ics.uci.edu/dataset/492/metro+interstate+traffic+volume). Run `scripts/prepare_data.py` on the original nine-column CSV before loading it into either database. This script reproduces the Part 1 notebook's cleaning: it fills missing holiday labels with `"None"`, treats rainfall `9831.3` as invalid, groups repeated timestamps by averaging numeric columns and keeping the first holiday/weather labels, sorts chronologically, and fills missing rainfall with its median.
+- `traffic_observations`: timestamp, traffic volume, stable source-row number, and foreign keys.
+- `weather_observations`: the weather values and labels for each prepared observation.
+- `holidays`: distinct holiday names; non-holiday observations have a `NULL` holiday foreign key.
 
-With the source dataset, this preparation produces **40,575 observations** from 48,204 source rows, consolidating 7,629 repeated-timestamp rows. The prepared data covers **2012-10-02 09:00:00 through 2018-09-30 23:00:00** and has no missing values. The `data/` directory is ignored by Git so the downloaded source and prepared dataset are not accidentally committed.
+Each prepared row receives one traffic row and one associated weather row. `source_row` distinguishes the observations and is unique. The timestamp is indexed for date-range queries. `clouds_all` uses a decimal type because averaging duplicate timestamps can produce fractional values.
 
-Each cleaned row becomes one database traffic observation. `source_row` records that row's one-based position in the prepared CSV, preserving a stable identifier for each observation.
+### MongoDB document design
 
-The MySQL schema has three tables:
+MongoDB stores one `traffic_observations` document per prepared row. Weather fields are embedded in the observation document, and `source_row` is used as the stable `_id`. The loader creates a `date_time` index for time-series lookups. A sample is provided in [sample_document.json](mongodb/sample_document.json).
 
-- `traffic_observations` stores the timestamp, traffic volume, source row, and foreign keys.
-- `weather_observations` stores the weather fields associated with an observation.
-- `holidays` stores each distinct holiday name. A traffic observation without a holiday has a `NULL` holiday key.
-
-Every traffic row refers to one weather row. This retains each source row's weather values even when multiple rows share a timestamp. MongoDB uses one `traffic_observations` document per input row and embeds the weather fields because they are read together with the traffic measurement.
+The source timestamps contain no timezone information. The loader keeps them as naive wall-clock values; PyMongo encodes naive Python datetimes as UTC for BSON storage. This is a storage convention and does not establish that the source observations were collected in UTC.
 
 ### ERD
 
@@ -128,55 +93,54 @@ erDiagram
     }
 ```
 
-## 2. Files
+### Task 2 query evidence
 
-- `sql/schema.sql` creates the MySQL database and its three tables.
-- `sql/queries.sql` contains four SQL examples: latest observation, date range, hourly average, and holiday average.
-- `scripts/load_sql.py` loads the prepared CSV into MySQL in one transaction.
-- `mongodb/sample_document.json` shows the document structure.
-- `mongodb/queries.js` contains the corresponding MongoDB queries.
-- `scripts/load_mongodb.py` loads the prepared CSV into MongoDB in batches.
-- `scripts/prepare_data.py` reproduces the Part 1 notebook's cleaning steps.
-- `scripts/query_actual_data.py` runs the SQL query equivalents on an in-memory SQLite database and computes the matching MongoDB query results from the actual prepared dataset.
-- `outputs/task2_query_results.md` contains the outputs calculated from the actual cleaned data.
+[queries.sql](sql/queries.sql) and [queries.js](mongodb/queries.js) each provide four queries: latest observation, date range, average traffic by hour, and average traffic on holidays.
 
-Both loaders preserve blank values as database `NULL`/MongoDB `null`, preserve repeated timestamps, and reject malformed timestamps or invalid numeric values. The source dataset does not include a timezone, so timestamp values are kept as timezone-naive wall-clock readings. PyMongo encodes naive datetimes as UTC; that is a storage convention here, not evidence that the original observations were collected in UTC.
+[task2_query_results.md](outputs/task2_query_results.md) records results calculated using the actual cleaned dataset. For reproducibility in this workspace, the SQL-equivalent results were run against an in-memory SQLite copy, and the MongoDB-style results were computed from the same dataset. **Those results are not evidence that the SQL and MongoDB scripts have been run on live MySQL and MongoDB servers.** Run the live query commands below and capture their outputs or screenshots for the final report.
 
-## 3. Set up and load the data
+The example date range is half-open: 2016-01-01 inclusive to 2016-02-01 exclusive. It matches **461 observations** in the cleaned dataset. The latest row is 2018-09-30 23:00, with traffic volume 954.
 
-Download the original CSV from the Kaggle link above or the UCI dataset page, extract/decompress it if the download is an archive, and place `Metro_Interstate_Traffic_Volume.csv` at `data/Metro_Interstate_Traffic_Volume.csv`. Keep the data file and database credentials out of version control. Install the Python database drivers and pandas from the repository root:
+### Task 2 local setup (Windows PowerShell)
+
+Run commands from the repository root. You need Docker Desktop with its engine running, Python, and the original CSV at the path above.
+
+#### 1. Install Python dependencies and prepare the data
 
 ```powershell
 python -m pip install -r requirements.txt
+python scripts\prepare_data.py
 ```
 
-Apply the same cleaning steps used in Part 1 to create the CSV consumed by both database loaders:
+The preparation command should report 40,575 rows and create `data\cleaned_traffic.csv`.
+
+#### 2. Configure local database passwords
+
+If you do not already have a `.env` file, create one from the example. If `.env` already exists, keep it and edit it only if necessary—do not overwrite your passwords. Use unique local passwords made from letters and numbers, since the MongoDB connection URI below uses those values directly.
 
 ```powershell
-python scripts/prepare_data.py
-```
-
-### Start local MySQL and MongoDB with Docker Compose
-
-Install and start Docker Desktop, then open a new PowerShell terminal in the repository root. Copy the example environment file and replace both placeholder passwords with unique local passwords. Do not commit `.env`.
-
-```powershell
-Copy-Item .env.example .env
+if (-not (Test-Path .env)) {
+    Copy-Item .env.example .env
+}
 notepad .env
+```
+
+`.env` is excluded by [.gitignore](.gitignore); do not commit it. The public template is [.env.example](.env.example).
+
+#### 3. Start the database servers
+
+```powershell
+docker info
+docker compose config --quiet
 docker compose up -d
 docker compose ps
 ```
 
-Wait until both services report `healthy`. The databases then listen on `127.0.0.1:3306` (MySQL) and `127.0.0.1:27017` (MongoDB). If either port is already in use, change its `*_PORT_HOST` value in `.env` and recreate the containers with `docker compose up -d`.
+Wait for the MySQL and MongoDB services to become healthy. Host ports are configured by `MYSQL_PORT_HOST` and `MONGODB_PORT_HOST` in `.env`; `docker compose ps` shows the published ports. If Docker reports a port conflict, change the relevant host port in `.env`, then run `docker compose up -d` again.
 
-The Compose setup keeps database files in named Docker volumes. Stopping the containers does not delete the data:
+#### 4. Set connection variables in the current PowerShell session
 
-```powershell
-docker compose stop
-docker compose start
-```
-
-The examples below read `.env` into the current PowerShell process so the Python loaders can connect without putting passwords in source code. Run these assignments once per terminal session:
+Run this in the same terminal for the Python loaders. If you open another terminal, repeat this step.
 
 ```powershell
 $settings = @{}
@@ -185,51 +149,103 @@ Get-Content .env | ForEach-Object {
         $settings[$matches[1]] = $matches[2]
     }
 }
+
 $env:MYSQL_HOST = "127.0.0.1"
 $env:MYSQL_PORT = $settings["MYSQL_PORT_HOST"]
 $env:MYSQL_USER = "root"
 $env:MYSQL_PASSWORD = $settings["MYSQL_ROOT_PASSWORD"]
 $env:MYSQL_DATABASE = "time_series_traffic"
-$env:MONGODB_URI = "mongodb://$($settings['MONGODB_ROOT_USERNAME']):$($settings['MONGODB_ROOT_PASSWORD'])@127.0.0.1:$($settings['MONGODB_PORT_HOST'])/?authSource=admin"
+
+$mongoUser = $settings["MONGODB_ROOT_USERNAME"]
+$mongoPassword = $settings["MONGODB_ROOT_PASSWORD"]
+$env:MONGODB_URI = "mongodb://$mongoUser`:$mongoPassword@127.0.0.1:$($settings['MONGODB_PORT_HOST'])/?authSource=admin"
 $env:MONGODB_DATABASE = "time_series_traffic"
 ```
 
-Create the MySQL tables by piping the schema into the running MySQL container:
+#### 5. Create the MySQL schema
 
 ```powershell
-Get-Content -Raw .\sql\schema.sql | docker compose exec -T mysql sh -c 'mysql -u root -p"$MYSQL_ROOT_PASSWORD"'
+docker compose cp .\sql\schema.sql mysql:/tmp/schema.sql
+docker compose exec mysql sh -c 'mysql -uroot -p"$MYSQL_ROOT_PASSWORD" < /tmp/schema.sql'
 ```
 
-Load the prepared CSV into MySQL and MongoDB:
+#### 6. Load the cleaned data into both databases
 
 ```powershell
-python scripts/load_sql.py "data\cleaned_traffic.csv"
-python scripts/load_mongodb.py "data\cleaned_traffic.csv"
+python scripts\load_sql.py "data\cleaned_traffic.csv"
+python scripts\load_mongodb.py "data\cleaned_traffic.csv"
 ```
 
-The SQL loader expects an empty `traffic_observations` table to prevent duplicate imports. For a repeatable fresh import, create a fresh database/schema before running it again rather than deleting data implicitly in the loader.
+Both loaders should report 40,575 observations. The MySQL loader requires an empty `traffic_observations` table. The MongoDB loader upserts by source-row `_id`; if a replacement CSV has fewer rows, remove stale documents intentionally before treating it as a complete refresh.
 
-Execute the SQL queries on the running MySQL server:
+#### 7. Run the SQL queries on live MySQL
 
 ```powershell
-Get-Content -Raw .\sql\queries.sql | docker compose exec -T mysql sh -c 'mysql -u root -p"$MYSQL_ROOT_PASSWORD"'
+docker compose cp .\sql\queries.sql mysql:/tmp/queries.sql
+docker compose exec mysql sh -c 'mysql -uroot -p"$MYSQL_ROOT_PASSWORD" < /tmp/queries.sql'
 ```
 
-The MongoDB loader uses the source row number as `_id`, so importing the same CSV again updates matching documents instead of duplicating them. If a later CSV contains fewer rows, remove any stale trailing documents deliberately before treating it as a complete replacement. Execute the MongoDB queries on the running server:
+#### 8. Run the MongoDB queries on live MongoDB
 
 ```powershell
 docker compose cp .\mongodb\queries.js mongodb:/tmp/queries.js
 docker compose exec mongodb mongosh `
-  --username $settings["MONGODB_ROOT_USERNAME"] `
-  --password $settings["MONGODB_ROOT_PASSWORD"] `
+  --username $mongoUser `
+  --password $mongoPassword `
   --authenticationDatabase admin `
   --file /tmp/queries.js
 ```
 
-To stop the database services while preserving their data, run `docker compose stop`. To also remove the database volumes and permanently delete the imported database contents, run `docker compose down -v` only when you intentionally want a complete reset.
+Save the terminal output or screenshots of at least three successful queries per database and include them in the report. The query result file already contains locally calculated equivalents, but live database evidence is still needed.
 
-## 4. Run the queries and record results
+#### 9. Stop or reset the database services
 
-Use the Docker Compose commands in the preceding section to execute `sql/queries.sql` and `mongodb/queries.js` against the live local database services.
+Stop the containers while preserving data:
 
-The scripts include four queries per database. Their date-range examples use a half-open interval from 1 January 2016 inclusive to 1 February 2016 exclusive. The actual cleaned dataset's query results are recorded in `outputs/task2_query_results.md`; these were calculated against a local SQLite copy and matching MongoDB-style aggregations because MySQL and MongoDB servers were not available in the development environment. Run the database query scripts against your live MySQL and MongoDB instances and include their output or screenshots as final evidence that the queries execute in those systems.
+```powershell
+docker compose stop
+```
+
+Start them again:
+
+```powershell
+docker compose start
+docker compose ps
+```
+
+Only if you intend to delete **all** stored database data and start over, remove the containers and volumes:
+
+```powershell
+docker compose down -v
+```
+
+## Repository contents
+
+```text
+.
+├── docker-compose.yml
+├── README.md
+├── requirements.txt
+├── sql/
+│   ├── schema.sql
+│   └── queries.sql
+├── mongodb/
+│   ├── sample_document.json
+│   └── queries.js
+├── scripts/
+│   ├── prepare_data.py
+│   ├── load_sql.py
+│   ├── load_mongodb.py
+│   └── query_actual_data.py
+├── outputs/
+│   └── task2_query_results.md
+└── data/                  # Local only; excluded from Git
+    ├── Metro_Interstate_Traffic_Volume.csv
+    └── cleaned_traffic.csv
+```
+
+## Part 1 and Part 2 deliverables
+
+The completed work documented here consists of the Part 1 traffic analysis and forecasting results, and the Part 2 database schema, ERD, MongoDB document design, loaders, and query examples. The repository also includes reproducible query-equivalent results calculated from the cleaned dataset in [task2_query_results.md](outputs/task2_query_results.md). For final evidence of the database implementation, run the supplied query files against the live MySQL and MongoDB services and include their results in the report.
+
+The assignment submission is a PDF report and a link to the GitHub repository. The report for these completed parts should explain the Part 1 dataset preparation, analytical questions, visual findings and model experiments, then the Part 2 schema, ERD, MongoDB design, query results, and team contributions. Keep local data and database credentials private, and use clear commits to document contributions.
