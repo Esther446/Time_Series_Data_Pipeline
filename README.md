@@ -2,7 +2,7 @@
 
 ## Project overview
 
-This project uses the Metro Interstate Traffic Volume dataset to study traffic patterns, evaluate forecasting models, and implement SQL and MongoDB databases. This README documents the completed work for **Part 1: Time-Series Analysis and Forecasting** and **Part 2: SQL and MongoDB Database Design**.
+This project uses the Metro Interstate Traffic Volume dataset to study traffic patterns, evaluate forecasting models, implement SQL and MongoDB databases, and expose RESTful CRUD and time-series query endpoints. This README documents the completed work for **Part 1: Time-Series Analysis and Forecasting**, **Part 2: SQL and MongoDB Database Design**, and **Part 3: CRUD and Time-Series Query Endpoints**.
 
 ## Dataset
 
@@ -219,6 +219,49 @@ Only if you intend to delete **all** stored database data and start over, remove
 docker compose down -v
 ```
 
+## Part 3: CRUD and Time-Series Query API (FastAPI)
+
+The `api/` package implements a FastAPI service providing full CRUD (`POST`, `GET`, `PUT`, `DELETE`) and time-series query endpoints (`latest`, `recent`, `date-range`) for **both** the relational MySQL database (`traffic_observations`, `weather_observations`, `holidays`) and the non-relational MongoDB collection (`traffic_observations`).
+
+### Endpoints Summary
+
+| Operation | MySQL Endpoint | MongoDB Endpoint | Description |
+|---|---|---|---|
+| **Create (POST)** | `POST /api/sql/records` | `POST /api/mongodb/records` | Insert a new traffic & weather observation |
+| **Latest Record (GET)** | `GET /api/sql/records/latest` | `GET /api/mongodb/records/latest` | Fetch the most recent observation (`date_time DESC, source_row DESC`) |
+| **Recent N Records (GET)** | `GET /api/sql/records/recent?limit=25` | `GET /api/mongodb/records/recent?limit=25` | Fetch the newest `N` records (supports Task 4 lag-24 / moving-average features) |
+| **Date Range (GET)** | `GET /api/sql/records/date-range?start=...&end=...` | `GET /api/mongodb/records/date-range?start=...&end=...` | Fetch observations in half-open interval `[start, end)` |
+| **List Records (GET)** | `GET /api/sql/records?limit=100&offset=0` | `GET /api/mongodb/records?limit=100&offset=0` | Paginated chronological list of observations |
+| **Get by ID (GET)** | `GET /api/sql/records/{source_row}` | `GET /api/mongodb/records/{source_row}` | Retrieve a single observation by `source_row` |
+| **Update (PUT)** | `PUT /api/sql/records/{source_row}` | `PUT /api/mongodb/records/{source_row}` | Update traffic volume, timestamp, holiday, or weather fields |
+| **Delete (DELETE)** | `DELETE /api/sql/records/{source_row}` | `DELETE /api/mongodb/records/{source_row}` | Delete an observation by `source_row` |
+
+### Starting the API Server
+
+Make sure your `.env` file (or environment variables) is configured for MySQL and MongoDB, then run:
+
+```bash
+uvicorn api.main:app --host 127.0.0.1 --port 8000 --reload
+```
+
+Interactive OpenAPI / Swagger documentation is available at:
+- `http://127.0.0.1:8000/docs`
+- `http://127.0.0.1:8000/redoc`
+
+### Verifying Task 3 Endpoints
+
+Run [verify_task3_api.py](scripts/verify_task3_api.py) to execute end-to-end tests of all MySQL and MongoDB CRUD and time-series endpoints and generate [task3_api_results.md](outputs/task3_api_results.md):
+
+```bash
+python scripts/verify_task3_api.py
+```
+
+To verify directly against live MySQL and MongoDB containers, pass `--live`:
+
+```bash
+python scripts/verify_task3_api.py --live
+```
+
 ## Repository contents
 
 ```text
@@ -226,6 +269,13 @@ docker compose down -v
 ├── docker-compose.yml
 ├── README.md
 ├── requirements.txt
+├── api/
+│   ├── __init__.py
+│   ├── database.py
+│   ├── main.py
+│   ├── mongodb_crud.py
+│   ├── schemas.py
+│   └── sql_crud.py
 ├── sql/
 │   ├── schema.sql
 │   └── queries.sql
@@ -236,16 +286,18 @@ docker compose down -v
 │   ├── prepare_data.py
 │   ├── load_sql.py
 │   ├── load_mongodb.py
-│   └── query_actual_data.py
+│   ├── query_actual_data.py
+│   └── verify_task3_api.py
 ├── outputs/
-│   └── task2_query_results.md
+│   ├── task2_query_results.md
+│   └── task3_api_results.md
 └── data/                  # Local only; excluded from Git
     ├── Metro_Interstate_Traffic_Volume.csv
     └── cleaned_traffic.csv
 ```
 
-## Part 1 and Part 2 deliverables
+## Part 1, Part 2, and Part 3 deliverables
 
-The completed work documented here consists of the Part 1 traffic analysis and forecasting results, and the Part 2 database schema, ERD, MongoDB document design, loaders, and query examples. The repository also includes reproducible query-equivalent results calculated from the cleaned dataset in [task2_query_results.md](outputs/task2_query_results.md). For final evidence of the database implementation, run the supplied query files against the live MySQL and MongoDB services and include their results in the report.
+The completed work documented here consists of the Part 1 traffic analysis and forecasting results, the Part 2 database schema, ERD, MongoDB document design, loaders, and query examples, and the Part 3 FastAPI CRUD and time-series query endpoints for both MySQL and MongoDB. The repository also includes reproducible query-equivalent results calculated from the cleaned dataset in [task2_query_results.md](outputs/task2_query_results.md) and full API endpoint verification outputs in [task3_api_results.md](outputs/task3_api_results.md).
 
-The assignment submission is a PDF report and a link to the GitHub repository. The report for these completed parts should explain the Part 1 dataset preparation, analytical questions, visual findings and model experiments, then the Part 2 schema, ERD, MongoDB design, query results, and team contributions. Keep local data and database credentials private, and use clear commits to document contributions.
+The assignment submission is a PDF report and a link to the GitHub repository. The report for these completed parts should explain the Part 1 dataset preparation, analytical questions, visual findings and model experiments, the Part 2 schema, ERD, MongoDB design, and query results, the Part 3 CRUD and time-series API endpoints, and team contributions. Keep local data and database credentials private, and use clear commits to document contributions.

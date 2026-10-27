@@ -217,7 +217,7 @@ def mongo_create_record(
     summary="Get the latest traffic record from MongoDB",
 )
 def mongo_get_latest_record(
-    collection: Collection[dict[dict[str, Any], Any]] = Depends(get_mongo_collection),
+    collection: Collection[dict[str, Any]] = Depends(get_mongo_collection),
 ) -> TrafficRecordResponse:
     return get_mongo_latest_record(collection)
 

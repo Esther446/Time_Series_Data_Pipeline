@@ -65,7 +65,7 @@ def get_mysql_config() -> dict[str, Any]:
     }
 
 
-def get_sql_connection() -> Generator[ Any, None, None]:
+def get_sql_connection() -> Generator[Any, None, None]:
     """FastAPI dependency yielding an active MySQL database connection."""
     config = get_mysql_config()
     try:
