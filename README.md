@@ -14,7 +14,7 @@ This project uses the Metro Interstate Traffic Volume dataset to study traffic p
 
 The observations are hourly-oriented but the series is not a complete regular hourly grid; the source has gaps as well as repeated timestamps. Part 1 consolidates duplicate timestamps, and lag features should therefore be described as previous-observation lags unless a fixed interval is explicitly verified.
 
-The source and prepared CSV files are kept under the locally ignored `data/` directory; they are not included in Git. Download the source CSV and place it at:
+The dataset that we used for this assignment is in the data/ folder:
 
 ```text
 data/Metro_Interstate_Traffic_Volume.csv
