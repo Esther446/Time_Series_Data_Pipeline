@@ -262,6 +262,40 @@ To verify directly against live MySQL and MongoDB containers, pass `--live`:
 python scripts/verify_task3_api.py --live
 ```
 
+### Part 4: Prediction script
+
+predict.py connects the earlier parts. It:
+
+fetches the 24 most recent observations from the API (/api/sql/records/recent or /api/mongodb/records/recent),
+rebuilds the Part 1 features: hour, day of week, month, lag-1, lag-24 and the 24-observation moving average,
+loads the trained Random Forest from models/random_forest.joblib,
+predicts the traffic volume of the next observation (one hour after the latest record by default).
+
+The notebook does not save its model, so train_model.py repeats the Part 1 feature engineering, chronological split and tuned Random Forest settings (200 trees, depth 20) and saves the result. It reproduces the Part 1 test results (MAE 149.60, RMSE 236.63, R² 0.9857).
+
+```bash
+pip install -r requirements.txt
+python scripts/prepare_data.py Data/Metro_Interstate_Traffic_Volume.csv
+python scripts/train_model.py
+uvicorn api.main:app --host 127.0.0.1 --port 8000     # in a second terminal
+python scripts/predict.py --database mongodb          # or --database sql
+```
+Options: --api-url (default http://127.0.0.1:8000), --model-path, and --target-time to forecast a specific timestamp after the latest record, for example --target-time "2018-10-01 08:00".
+
+Example output:
+
+```text
+Source: mongodb endpoint at http://127.0.0.1:8000
+Observations used: 24 (2018-09-30 00:00:00 to 2018-09-30 23:00:00)
+Latest traffic volume: 954
+Forecast for: 2018-10-01 00:00:00
+ hour  day_of_week  month  traffic_lag_1  traffic_lag_24  traffic_ma_24
+    0            0     10          954.0          1826.0        2504.29
+Predicted traffic volume: 533
+```
+
+Because the dataset has gaps, lag-1 and lag-24 mean "previous observation" and "24 observations back", as in Part 1. The script prints a note when the 24 observations are not exactly one hour apart.
+
 ## Repository contents
 
 ```text
