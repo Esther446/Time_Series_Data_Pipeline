@@ -321,7 +321,9 @@ Because the dataset has gaps, lag-1 and lag-24 mean "previous observation" and "
 │   ├── load_sql.py
 │   ├── load_mongodb.py
 │   ├── query_actual_data.py
-│   └── verify_task3_api.py
+│   ├── verify_task3_api.py
+│   ├── train_model.py
+│   └── predict.py
 ├── outputs/
 │   ├── task2_query_results.md
 │   └── task3_api_results.md
