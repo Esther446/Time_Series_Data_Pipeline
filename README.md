@@ -6,8 +6,7 @@ This project uses the Metro Interstate Traffic Volume dataset to study traffic p
 
 ## Dataset
 
-- **Dataset:** [Metro Interstate Traffic Volume — Kaggle](https://www.kaggle.com/datasets/uciml/metro-interstate-traffic-volume)
-- **Alternative public source:** [Metro Interstate Traffic Volume — UCI](https://archive.ics.uci.edu/dataset/492/metro+interstate+traffic+volume)
+- **Dataset:** [Metro Interstate Traffic Volume — Kaggle](https://www.kaggle.com/code/ramyahr/metro-interstate-traffic-volume/input)
 - **Target:** `traffic_volume`
 - **Timestamp:** `date_time`
 - **Source data:** 48,204 rows and nine columns: holiday, weather measurements and descriptions, timestamp, and traffic volume.
