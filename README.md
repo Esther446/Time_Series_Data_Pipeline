@@ -95,11 +95,211 @@ erDiagram
 
 ### Task 2 query evidence
 
-[queries.sql](sql/queries.sql) and [queries.js](mongodb/queries.js) each provide four queries: latest observation, date range, average traffic by hour, and average traffic on holidays.
+[queries.sql](sql/queries.sql) and [queries.js](mongodb/queries.js) contain the four Task 2 queries for each database: latest observation, date range, average traffic by hour, and average traffic on holidays. The date-range interval is half-open: 2016-01-01 inclusive to 2016-02-01 exclusive.
 
-[task2_query_results.md](outputs/task2_query_results.md) records results calculated using the actual cleaned dataset. For reproducibility in this workspace, the SQL-equivalent results were run against an in-memory SQLite copy, and the MongoDB-style results were computed from the same dataset. **Those results are not evidence that the SQL and MongoDB scripts have been run on live MySQL and MongoDB servers.** Run the live query commands below and capture their outputs or screenshots for the final report.
+<details>
+<summary>MySQL queries</summary>
 
-The example date range is half-open: 2016-01-01 inclusive to 2016-02-01 exclusive. It matches **461 observations** in the cleaned dataset. The latest row is 2018-09-30 23:00, with traffic volume 954.
+```sql
+-- 1. Latest observation, including its related holiday and weather data.
+SELECT
+    t.date_time,
+    t.traffic_volume,
+    h.holiday_name,
+    w.temp,
+    w.rain_1h,
+    w.snow_1h,
+    w.clouds_all,
+    w.weather_main,
+    w.weather_description
+FROM traffic_observations AS t
+JOIN weather_observations AS w ON w.weather_id = t.weather_id
+LEFT JOIN holidays AS h ON h.holiday_id = t.holiday_id
+ORDER BY t.date_time DESC, t.source_row DESC
+LIMIT 1;
+
+-- 2. Observations in a half-open date range [start, end).
+SELECT
+    t.date_time,
+    t.traffic_volume,
+    h.holiday_name,
+    w.weather_main,
+    w.weather_description
+FROM traffic_observations AS t
+JOIN weather_observations AS w ON w.weather_id = t.weather_id
+LEFT JOIN holidays AS h ON h.holiday_id = t.holiday_id
+WHERE t.date_time >= '2016-01-01 00:00:00'
+  AND t.date_time <  '2016-02-01 00:00:00'
+ORDER BY t.date_time, t.source_row;
+
+-- 3. Average traffic volume by hour of day.
+SELECT
+    HOUR(date_time) AS hour_of_day,
+    AVG(traffic_volume) AS average_traffic_volume,
+    COUNT(*) AS observation_count
+FROM traffic_observations
+GROUP BY HOUR(date_time)
+ORDER BY hour_of_day;
+
+-- 4. Average traffic volume for observations recorded on holidays.
+SELECT
+    h.holiday_name,
+    AVG(t.traffic_volume) AS average_traffic_volume,
+    COUNT(*) AS observation_count
+FROM traffic_observations AS t
+JOIN holidays AS h ON h.holiday_id = t.holiday_id
+GROUP BY h.holiday_id, h.holiday_name
+ORDER BY average_traffic_volume DESC;
+```
+
+</details>
+
+<details>
+<summary>MongoDB queries</summary>
+
+```javascript
+use("time_series_traffic");
+
+const traffic = db.getCollection("traffic_observations");
+
+// 1. Latest observation.
+printjson(
+  traffic.find(
+    {},
+    {
+      _id: 0,
+      date_time: 1,
+      traffic_volume: 1,
+      holiday: 1,
+      weather: 1
+    }
+  ).sort({ date_time: -1, source_row: -1 }).limit(1).toArray()
+);
+
+// 2. Observations in a half-open date range [start, end).
+printjson(
+  traffic.find(
+    {
+      date_time: {
+        $gte: ISODate("2016-01-01T00:00:00Z"),
+        $lt: ISODate("2016-02-01T00:00:00Z")
+      }
+    },
+    {
+      _id: 0,
+      date_time: 1,
+      traffic_volume: 1,
+      holiday: 1,
+      "weather.weather_main": 1,
+      "weather.weather_description": 1
+    }
+  ).sort({ date_time: 1, source_row: 1 }).toArray()
+);
+
+// 3. Average traffic volume by hour of day.
+printjson(
+  traffic.aggregate([
+    {
+      $group: {
+        _id: { $hour: "$date_time" },
+        average_traffic_volume: { $avg: "$traffic_volume" },
+        observation_count: { $sum: 1 }
+      }
+    },
+    { $sort: { _id: 1 } }
+  ]).toArray()
+);
+
+// 4. Average traffic volume for observations recorded on holidays.
+printjson(
+  traffic.aggregate([
+    { $match: { holiday: { $ne: null } } },
+    {
+      $group: {
+        _id: "$holiday",
+        average_traffic_volume: { $avg: "$traffic_volume" },
+        observation_count: { $sum: 1 }
+      }
+    },
+    { $sort: { average_traffic_volume: -1 } }
+  ]).toArray()
+);
+```
+
+</details>
+
+#### Recorded query outputs
+
+[task2_query_results.md](outputs/task2_query_results.md) contains the detailed result tables for all eight queries. The SQL-equivalent and MongoDB-style outputs agree on the cleaned dataset. The recorded outputs are:
+
+- **Latest observation:** `2018-09-30 23:00:00`, traffic volume **954**, no holiday, weather `Clouds / overcast clouds`, temperature `282.120`, rainfall and snowfall `0.000`, cloud cover `90`.
+- **Date range:** **461 observations**. The first five, in timestamp order:
+
+  | date_time | traffic_volume | holiday | weather_main | weather_description |
+  | --- | ---: | --- | --- | --- |
+  | 2016-01-01 00:00:00 | 1513 | New Years Day | Haze | haze |
+  | 2016-01-01 01:00:00 | 1550 | NULL | Snow | light snow |
+  | 2016-01-01 03:00:00 | 719 | NULL | Snow | light snow |
+  | 2016-01-01 04:00:00 | 533 | NULL | Clouds | overcast clouds |
+  | 2016-01-01 05:00:00 | 586 | NULL | Clouds | overcast clouds |
+
+- **Average traffic by hour:** SQL and MongoDB report the same 24 groups:
+
+  | hour | average_traffic_volume | observation_count |
+  | ---: | ---: | ---: |
+  | 0 | 844.854 | 1723 |
+  | 1 | 521.319 | 1710 |
+  | 2 | 392.637 | 1697 |
+  | 3 | 373.210 | 1669 |
+  | 4 | 701.318 | 1703 |
+  | 5 | 2103.667 | 1685 |
+  | 6 | 4172.058 | 1683 |
+  | 7 | 4769.831 | 1672 |
+  | 8 | 4593.600 | 1689 |
+  | 9 | 4394.779 | 1639 |
+  | 10 | 4204.877 | 1705 |
+  | 11 | 4498.459 | 1667 |
+  | 12 | 4739.119 | 1692 |
+  | 13 | 4741.578 | 1673 |
+  | 14 | 4957.023 | 1697 |
+  | 15 | 5271.738 | 1663 |
+  | 16 | 5708.615 | 1707 |
+  | 17 | 5350.831 | 1664 |
+  | 18 | 4306.467 | 1682 |
+  | 19 | 3311.021 | 1683 |
+  | 20 | 2869.704 | 1709 |
+  | 21 | 2699.361 | 1704 |
+  | 22 | 2224.419 | 1719 |
+  | 23 | 1490.710 | 1740 |
+
+- **Average traffic on holidays:** SQL and MongoDB report the same 11 groups:
+
+  | holiday | average_traffic_volume | observation_count |
+  | --- | ---: | ---: |
+  | New Years Day | 1324.600 | 5 |
+  | Memorial Day | 1107.600 | 5 |
+  | Independence Day | 1076.000 | 5 |
+  | Labor Day | 1013.200 | 5 |
+  | Thanksgiving Day | 953.600 | 5 |
+  | Christmas Day | 846.600 | 5 |
+  | Veterans Day | 691.400 | 5 |
+  | Washingtons Birthday | 635.200 | 5 |
+  | State Fair | 634.800 | 5 |
+  | Martin Luther King Jr Day | 592.667 | 3 |
+  | Columbus Day | 519.400 | 5 |
+
+The results report documents the execution method: SQL results were run against an in-memory SQLite copy of the cleaned CSV, and MongoDB-style results were computed from that same CSV. **These dataset-derived equivalents are not evidence of live MySQL or MongoDB server execution.** Run the live query commands below to capture database-execution evidence.
+
+#### Part 2 repository changes
+
+The database work in this repository includes:
+
+- [sql/schema.sql](sql/schema.sql) and [sql/queries.sql](sql/queries.sql) for the normalized MySQL schema and four relational queries.
+- [mongodb/sample_document.json](mongodb/sample_document.json) and [mongodb/queries.js](mongodb/queries.js) for the MongoDB document shape and four document/aggregation queries.
+- [scripts/load_sql.py](scripts/load_sql.py) and [scripts/load_mongodb.py](scripts/load_mongodb.py) to validate and load the prepared CSV into each database.
+- [scripts/prepare_data.py](scripts/prepare_data.py) to clean and consolidate the source CSV into the shared database input.
+- [docker-compose.yml](docker-compose.yml), [.env.example](.env.example), and [.gitignore](.gitignore) for local database services and secret handling.
+- [outputs/task2_query_results.md](outputs/task2_query_results.md) for the full recorded query-result tables and execution notes.
 
 ### Task 2 local setup (Windows PowerShell)
 
