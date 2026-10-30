@@ -1,0 +1,7 @@
+Source: mongodb endpoint at http://127.0.0.1:8000
+Observations used: 24 (2018-09-30 00:00:00 to 2018-09-30 23:00:00)
+Latest traffic volume: 954
+Forecast for: 2018-10-01 00:00:00
+ hour  day_of_week  month  traffic_lag_1  traffic_lag_24  traffic_ma_24
+    0            0     10          954.0          1826.0        2504.29
+Predicted traffic volume: 533
