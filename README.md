@@ -387,14 +387,31 @@ docker compose exec mysql sh -c 'mysql -uroot -p"$MYSQL_ROOT_PASSWORD" < /tmp/qu
 
 #### 8. Run the MongoDB queries on live MongoDB
 
+Copy the query script into the container once:
+
 ```powershell
 docker compose cp .\mongodb\queries.js mongodb:/tmp/queries.js
-docker compose exec mongodb mongosh `
-  --username $mongoUser `
-  --password $mongoPassword `
-  --authenticationDatabase admin `
-  --file /tmp/queries.js
 ```
+
+Run **one command at a time** to execute just that query and print only its result:
+
+```powershell
+docker compose exec mongodb mongosh --quiet --username $mongoUser --password $mongoPassword --authenticationDatabase admin --eval "var selectedQuery = 'latest'; void load('/tmp/queries.js')"
+```
+
+```powershell
+docker compose exec mongodb mongosh --quiet --username $mongoUser --password $mongoPassword --authenticationDatabase admin --eval "var selectedQuery = 'date-range'; void load('/tmp/queries.js')"
+```
+
+```powershell
+docker compose exec mongodb mongosh --quiet --username $mongoUser --password $mongoPassword --authenticationDatabase admin --eval "var selectedQuery = 'hourly-average'; void load('/tmp/queries.js')"
+```
+
+```powershell
+docker compose exec mongodb mongosh --quiet --username $mongoUser --password $mongoPassword --authenticationDatabase admin --eval "var selectedQuery = 'holiday-average'; void load('/tmp/queries.js')"
+```
+
+The date-range command returns all matching documents (461 for the example interval), so its output is longer than the other queries.
 
 Save the terminal output or screenshots of at least three successful queries per database and include them in the report. The query result file already contains locally calculated equivalents, but live database evidence is still needed.
 
