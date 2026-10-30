@@ -93,7 +93,7 @@ def build_features(history: pd.DataFrame, target_time: pd.Timestamp | None = Non
         [
             {
                 "hour": target_time.hour,
-                "day_of_week": target_time.dayofweek,
+                "day_of_week": target_time.day_of_week,
                 "month": target_time.month,
                 "traffic_lag_1": volumes[-1],  # most recent observation
                 "traffic_lag_24": volumes[0],  # 24 observations before the target

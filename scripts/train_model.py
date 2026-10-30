@@ -37,7 +37,7 @@ def build_training_data(cleaned_csv: Path) -> pd.DataFrame:
     df = df[["date_time", "traffic_volume"]].sort_values("date_time").reset_index(drop=True)
 
     df["hour"] = df["date_time"].dt.hour
-    df["day_of_week"] = df["date_time"].dt.dayofweek
+    df["day_of_week"] = df["date_time"].dt.day_of_week
     df["month"] = df["date_time"].dt.month
     df["traffic_lag_1"] = df["traffic_volume"].shift(1)
     df["traffic_lag_24"] = df["traffic_volume"].shift(24)
